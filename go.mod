@@ -5,12 +5,15 @@ go 1.22
 toolchain go1.22.2
 
 require (
+	github.com/adrg/sysfont v0.1.2
 	github.com/runletapp/go-console v0.0.0-20211204140000-27323a28410a
 	github.com/tea4go/gh v1.0.9
 	github.com/wailsapp/wails/v2 v2.8.1
 )
 
 require (
+	github.com/adrg/strutil v0.2.2 // indirect
+	github.com/adrg/xdg v0.3.0 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
 	github.com/creack/pty v1.1.21 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect

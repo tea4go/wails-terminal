@@ -6,6 +6,22 @@ export function Close() {
   return window['go']['main']['consoleService']['Close']();
 }
 
+export function GetFontName() {
+  return window['go']['main']['consoleService']['GetFontName']();
+}
+
+export function GetFontSize() {
+  return window['go']['main']['consoleService']['GetFontSize']();
+}
+
+export function GetFontWeight() {
+  return window['go']['main']['consoleService']['GetFontWeight']();
+}
+
+export function GetTheme() {
+  return window['go']['main']['consoleService']['GetTheme']();
+}
+
 export function LoopRead() {
   return window['go']['main']['consoleService']['LoopRead']();
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"github.com/runletapp/go-console"
@@ -16,7 +17,7 @@ import (
 type consoleService struct {
 	ctx context.Context
 
-	termCmd []string
+	termCmd string
 	pty     console.Console
 
 	ptyWrite io.WriteCloser
@@ -24,11 +25,29 @@ type consoleService struct {
 
 	rows int
 	cols int
+
+	theme *Theme
+
+	fontName   string
+	fontWeight bool
+	fontSize   int
 }
 
 // 获取Console实例
-func NewConsole(term_cmd []string) *consoleService {
-	return &consoleService{termCmd: term_cmd}
+func NewConsole(term_cmd, font_name string, font_weight bool, font_size int, theme *Theme) *consoleService {
+	if len(term_cmd) == 0 {
+		term_cmd := os.Getenv("SHELL")
+		if term_cmd == "" {
+			term_cmd = "cmd"
+		}
+	}
+	return &consoleService{
+		termCmd:    term_cmd,
+		fontName:   font_name,
+		fontSize:   font_size,
+		fontWeight: font_weight,
+		theme:      theme,
+	}
 }
 
 func (a *consoleService) Startup(ctx context.Context) {
@@ -46,7 +65,7 @@ func (a *consoleService) startTTY() error {
 	a.ptyRead = a.pty
 	a.ptyWrite = a.pty
 
-	err = a.pty.Start(a.termCmd)
+	err = a.pty.Start([]string{a.termCmd})
 	if err != nil {
 		return fmt.Errorf("启动本地终端失败，%s", err.Error())
 	}
@@ -103,4 +122,29 @@ func (a *consoleService) Resize(rows, cols int) {
 
 func (a *consoleService) SendText(text string) {
 	a.ptyWrite.Write([]byte(text))
+}
+
+func (a *consoleService) GetTheme() *Theme {
+	return a.theme
+}
+
+func (a *consoleService) GetFontName() string {
+	if len(a.fontName) > 0 {
+		a.fontName = a.fontName + ","
+	}
+	logs.Notice("FontName : %s", a.fontName)
+	return a.fontName
+}
+
+func (a *consoleService) GetFontSize() int {
+	if a.fontSize > 28 || a.fontSize < 9 {
+		a.fontSize = 18
+	}
+	logs.Notice("FontSize : %d", a.fontSize)
+	return a.fontSize
+}
+
+func (a *consoleService) GetFontWeight() bool {
+	logs.Notice("FontWeight : %s", a.fontWeight)
+	return a.fontWeight
 }

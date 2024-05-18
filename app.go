@@ -5,78 +5,76 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/exec"
+	"time"
 
-	"github.com/creack/pty"
+	"github.com/runletapp/go-console"
+	logs "github.com/tea4go/gh/log4go"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
-type App struct {
+type consoleService struct {
 	ctx context.Context
 
-	options TerminalOptions
+	termCmd []string
+	pty     console.Console
 
-	tty  *os.File
-	rows uint16
-	cols uint16
+	ptyWrite io.WriteCloser
+	ptyRead  io.Reader
+
+	rows int
+	cols int
 }
 
-type TerminalOptions struct {
-	args       []string
-	lightTheme *Theme
-	darkTheme  *Theme
+// 获取Console实例
+func NewConsole(term_cmd []string) *consoleService {
+	return &consoleService{termCmd: term_cmd}
 }
 
-// NewApp creates a new App application struct
-func NewApp(options TerminalOptions) *App {
-	return &App{options: options}
-}
-
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
-func (a *App) startup(ctx context.Context) {
+func (a *consoleService) Startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-func (a *App) StartTTY() error {
-	var cmd *exec.Cmd
-	switch len(a.options.args) {
-	case 0:
-		return fmt.Errorf("no command specified")
-	case 1:
-		cmd = exec.Command(a.options.args[0])
-	default:
-		cmd = exec.Command(a.options.args[0], a.options.args[1:]...)
-	}
-	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, "TERM=xterm-256color")
+func (a *consoleService) startTTY() error {
+	logs.Debug("StartTTY() ......")
 
-	tty, err := pty.Start(cmd)
+	var err error
+	a.pty, err = console.New(80, 24)
 	if err != nil {
-		return fmt.Errorf("failed to start pty: %w", err)
+		return fmt.Errorf("初始化本地终端失败，%s", err.Error())
 	}
-	if a.rows != 0 && a.cols != 0 {
-		pty.Setsize(tty, &pty.Winsize{Rows: a.rows, Cols: a.cols})
+	a.ptyRead = a.pty
+	a.ptyWrite = a.pty
+
+	err = a.pty.Start(a.termCmd)
+	if err != nil {
+		return fmt.Errorf("启动本地终端失败，%s", err.Error())
 	}
 
-	a.tty = tty
 	return nil
 }
 
-func (a *App) Start() {
-	a.StartTTY()
+// 开始循环读取终端输出信息
+func (a *consoleService) LoopRead() {
+	err := a.startTTY()
+	if err != nil {
+		logs.Error(err)
+		return
+	}
+
+	//从console读取输出信息，通过事件发送到前端
 	go func() {
 		for {
 			buf := make([]byte, 20480)
-			n, err := a.tty.Read(buf)
+			n, err := a.ptyRead.Read(buf)
 			if err != nil {
 				if !errors.Is(err, io.EOF) {
-					runtime.LogErrorf(a.ctx, "Read error: %s", err)
+					logs.Error("读取Console输出错误，%s", err.Error())
+					time.Sleep(1 * time.Second)
 					continue
 				}
 
+				//退出应用程序
 				runtime.Quit(a.ctx)
 				continue
 			}
@@ -85,21 +83,24 @@ func (a *App) Start() {
 	}()
 }
 
-func (a *App) GetDarkTheme() *Theme {
-	return a.options.darkTheme
+func (a *consoleService) Close() error {
+	var err error
+	if a.pty != nil {
+		err = a.pty.Close()
+		a.pty = nil
+	}
+	return err
 }
 
-func (a *App) GetLightTheme() *Theme {
-	return a.options.lightTheme
+func (a *consoleService) Resize(rows, cols int) {
+	if a.pty != nil && rows > 0 && cols >= 10 {
+		logs.Debug("SetTTYSize: %d, %d", rows, cols)
+		a.rows = rows
+		a.cols = cols
+		a.pty.SetSize(cols, rows)
+	}
 }
 
-func (a *App) SetTTYSize(rows, cols uint16) {
-	a.rows = rows
-	a.cols = cols
-	runtime.LogDebugf(a.ctx, "SetTTYSize: %d, %d", rows, cols)
-	pty.Setsize(a.tty, &pty.Winsize{Rows: rows, Cols: cols})
-}
-
-func (a *App) SendText(text string) {
-	a.tty.Write([]byte(text))
+func (a *consoleService) SendText(text string) {
+	a.ptyWrite.Write([]byte(text))
 }

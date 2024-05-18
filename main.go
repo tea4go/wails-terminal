@@ -5,6 +5,7 @@ import (
 	"flag"
 	"os"
 
+	logs "github.com/tea4go/gh/log4go"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -14,6 +15,12 @@ import (
 var assets embed.FS
 
 func main() {
+	//logs.SetLogger("conn", fmt.Sprintf(`{"addr":"%s:%d","level":7,"name":"Mate60"}`, "192.168.50.1", 9514))
+	//logs.SetLogger("file", `{"filename":"ulog_whaleterm.log", "perm": "0666","level":7}`)
+	logs.SetLogger("console", `{"color":true,"level":7}`)
+	logs.SetLevel(logs.LevelDebug)
+	logs.Debug("=================================")
+
 	var err error
 	flags := struct {
 		lightTheme string
@@ -27,27 +34,15 @@ func main() {
 	args := flag.Args()
 	if len(args) == 0 {
 		shell := os.Getenv("SHELL")
-		args = []string{shell, "-li"}
+		if shell == "" {
+			args = []string{"cmd"}
+		} else {
+			args = []string{shell}
+		}
 	}
-
-	lightTheme, err := loadTheme(flags.lightTheme)
-	if err != nil {
-		println("Error:", err.Error())
-		os.Exit(1)
-	}
-
-	darkTheme, err := loadTheme(flags.darkTheme)
-	if err != nil {
-		println("Error:", err.Error())
-		os.Exit(1)
-	}
-
+	logs.Notice(args)
 	// Create an instance of the app structure
-	app := NewApp(TerminalOptions{
-		args:       args,
-		lightTheme: lightTheme,
-		darkTheme:  darkTheme,
-	})
+	app := NewConsole(args)
 
 	// Create application with options
 	err = wails.Run(&options.App{
@@ -58,7 +53,7 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 1},
-		OnStartup:        app.startup,
+		OnStartup:        app.Startup,
 		Bind: []interface{}{
 			app,
 		},
